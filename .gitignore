@@ -1,0 +1,11 @@
+__pycache__/
+hf_cache/
+sam/
+models/
+images/
+output/
+.vscode/
+
+*.pth
+*.bin
+controlnet/diffusion_pytorch_model.bin
