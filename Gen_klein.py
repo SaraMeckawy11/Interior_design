@@ -58,7 +58,48 @@ else:
     WIDTH, HEIGHT = 768, 1024
 print(f"Input {orig_w}x{orig_h} -> generating {WIDTH}x{HEIGHT}")
 
-# ----------------------------- prompt (keep in sync with Gen.py) -----------
+# ----------------------------- prompt --------------------------------------
+# What "fully furnished" means per room type. The art direction below is what
+# separates a generic render from a designer one: models draw what you NAME,
+# so name the furniture, materials, and lighting explicitly. Extend freely.
+FURNITURE_BY_ROOM = {
+    "living room": (
+        "a sculptural curved sofa in boucle fabric with a contrasting "
+        "velvet accent chair pair, a round travertine or warm-wood coffee "
+        "table, and a low wide media console styled with books and ceramics"
+    ),
+    "bedroom": (
+        "a generous upholstered bed with layered premium bedding, matching "
+        "nightstands with warm lamps, a bench at the foot of the bed, and a "
+        "styled dresser"
+    ),
+    "dining room": (
+        "a solid-wood dining table with sculptural designer chairs, a styled "
+        "sideboard, and a statement pendant centered over the table"
+    ),
+    "kitchen": (
+        "full fitted cabinetry with stone countertops, an island or "
+        "breakfast counter with designer stools, integrated appliances, and "
+        "styled open shelving"
+    ),
+    "home office": (
+        "a wide desk with a refined ergonomic chair, full bookshelves, task "
+        "lighting, and a comfortable reading armchair"
+    ),
+    "kids room": (
+        "a cozy bed with playful layered bedding, a study desk and chair, "
+        "soft rug, wall decor, and generous storage"
+    ),
+    "bathroom": (
+        "a floating vanity with a stone counter and backlit mirror, a "
+        "glass-enclosed shower, premium tile surfaces, and styled towels"
+    ),
+}
+_furniture = FURNITURE_BY_ROOM.get(
+    ROOM_TYPE.lower().strip(),
+    f"all the essential furniture of a premium {ROOM_TYPE}, beautifully styled",
+)
+
 prompt = (
     f"Redesign this room as a {ROOM_TYPE} in {DESIGN_STYLE} style with a "
     f"{COLOR_TONE} color palette.\n\n"
@@ -68,26 +109,32 @@ prompt = (
     "position, size and shape. Do not add, remove, move or resize any window "
     "or door. Surface finishes and materials MAY change; geometry may not.\n"
     "- Keep each window's exact size, proportions and SILL HEIGHT. Never "
-    "enlarge a window, never convert a window into a door or floor-to-ceiling "
-    "glazing, and keep every balcony door exactly where and as it is.\n"
+    "enlarge a window or convert it into a door or floor-to-ceiling "
+    "glazing; keep balcony doors exactly as they are.\n"
     "- Keep the exact same camera position, angle and lens/perspective.\n"
     "- Keep daylight coming from the real windows; lighting must be "
     "physically plausible for this room.\n\n"
     "DESIGN BRIEF - work like a senior professional interior designer:\n"
     "- If the room is empty, furnish it completely. If it already has "
     "furniture or decor, replace all of it with the new design.\n"
-    "- FULLY FINISH every surface (the photo may show an unfinished or "
-    "under-construction room): lay a brand-new premium finished floor in a "
-    "material that suits the style covering the ENTIRE floor, smooth painted "
-    "walls, and a clean finished ceiling. No construction dust, debris, "
-    "stains, bare concrete, exposed wires or unfinished surfaces anywhere.\n"
-    f"- Full, cohesive furniture arrangement appropriate for a {ROOM_TYPE}: "
-    "primary furniture pieces, correctly sized rug, curtains on the real "
-    "windows, wall art, plants, and layered lighting.\n"
+    "- FULLY FINISH every surface: a brand-new premium floor covering the "
+    "ENTIRE floor, smooth painted walls, clean finished ceiling. No "
+    "construction dust, debris, stains, bare concrete or exposed wires "
+    "anywhere.\n"
+    f"- Furnish completely with: {_furniture}; plus a large area rug "
+    "anchoring the arrangement, floor-to-ceiling sheer curtains on the real "
+    "windows, ONE large statement artwork on the main wall, an olive tree "
+    "or fiddle-leaf plant in a ceramic pot, and layered lighting (recessed "
+    "ceiling spots, a sculptural pendant, and a warm floor lamp).\n"
+    f"- COLOR & MATERIALS: everything in the {COLOR_TONE} palette with one "
+    "deeper accent tone for contrast; mix at least three rich textures "
+    "(boucle, velvet, stone, warm oak); wide-plank oak flooring unless the "
+    "style dictates otherwise.\n"
     "- Realistic scale and proportions; furniture sits properly on the floor "
     "with correct contact shadows; nothing floats or clips into walls.\n"
-    "- Photorealistic output, high detail, natural soft shadows, styled like "
-    "an Architectural Digest photo shoot."
+    "- Shot like a professional interior photograph for a design magazine: "
+    "soft golden natural light from the real windows, gentle shadows, rich "
+    "material detail, immaculate styling, editorial composition."
 )
 print("PROMPT:\n", prompt, "\n" + "-" * 60)
 
@@ -219,7 +266,11 @@ result = pipe(
 
 print(f"seed {SEED}: geometry score {geometry_score(room_image, result):.3f}")
 
-out_path = os.path.join(OUTPUT_DIR, "generated_interior_klein.png")
+# Never overwrite previous results: ..._001.png, _002.png, ...
+n = 1
+while os.path.exists(os.path.join(OUTPUT_DIR, f"generated_interior_klein_{n:03d}.png")):
+    n += 1
+out_path = os.path.join(OUTPUT_DIR, f"generated_interior_klein_{n:03d}.png")
 result.save(out_path)
 room_pil.save(os.path.join(OUTPUT_DIR, "input.png"))
 print(f"\nSaved: {out_path}")

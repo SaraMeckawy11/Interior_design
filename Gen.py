@@ -38,23 +38,54 @@ COLOR_TONE = "warm vanilla latte"  # e.g. "earthy neutrals", "cool grey", "sage 
 
 # ------------------------------ config ------------------------------
 OUTPUT_DIR = "output"
-API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 
-# Tried in order; first one that succeeds wins. NOTE: no Gemini image model
-# has free API quota (verified: all 429 with limit 0) — billing required.
-#   gemini-3.1-flash-image      -> default: best quality/cost (~$0.07 @1K)
-#   gemini-3.1-flash-lite-image -> cheapest/fastest (~$0.034, looser)
-#   gemini-2.5-flash-image      -> legacy fallback ($0.039)
-# For maximum-quality final renders ($0.134):
-#   set GEMINI_IMAGE_MODEL=gemini-3-pro-image
-_first = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image")
-MODELS = [_first] + [m for m in
-                     ("gemini-3.1-flash-image", "gemini-3.1-flash-lite-image",
-                      "gemini-2.5-flash-image")
-                     if m != _first]
+
+def _load_api_key():
+    # Env var first; fall back to gemini_key.txt next to this script
+    # (gitignored), which works even when the editor was started before
+    # setx and doesn't see fresh environment variables.
+    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not key:
+        key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gemini_key.txt")
+        if os.path.isfile(key_file):
+            with open(key_file, encoding="utf-8") as f:
+                key = f.read().strip()
+    return key
+
+
+API_KEY = _load_api_key()
+
+# ------------------------- model choice -------------------------
+# Pick the Nano Banana model by number (no fallback — exactly what you
+# choose is what runs and what you pay for):
+#   1 = Nano Banana 2       (gemini-3.1-flash-image)       ~$0.067/img — best quality/cost balance
+#   2 = Nano Banana 2 Lite  (gemini-3.1-flash-lite-image)  ~$0.034/img — cheapest + fastest
+#   3 = Nano Banana Pro     (gemini-3-pro-image)           ~$0.134/img — maximum quality, slowest
+#   4 = Nano Banana legacy  (gemini-2.5-flash-image)       ~$0.039/img — old model, 1024px only
+MODEL_CHOICE = 1
+
+MODEL_OPTIONS = {
+    1: "gemini-3.1-flash-image",
+    2: "gemini-3.1-flash-lite-image",
+    3: "gemini-3-pro-image",
+    4: "gemini-2.5-flash-image",
+}
+MODEL = MODEL_OPTIONS[MODEL_CHOICE]
 IMAGE_SIZE = "2K"  # "1K", "2K", or "4K" — only applies to 3.x models (2.5 is fixed 1024px)
 
-API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+# The plain Gemini API is prepay-only (the $300 Cloud credit does NOT apply),
+# so calls go through Vertex AI instead: same models, billed to the Cloud
+# credit. Requires a service-account-bound API key (July 2026 setup) with the
+# "Vertex AI User" role. Set VERTEX_PROJECT = None to use the plain API.
+VERTEX_PROJECT = os.environ.get("VERTEX_PROJECT", "gen-lang-client-0515245864")
+
+if VERTEX_PROJECT:
+    API_URL = (
+        "https://aiplatform.googleapis.com/v1/projects/" + VERTEX_PROJECT +
+        "/locations/global/publishers/google/models/{model}:generateContent"
+    )
+else:
+    API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 # ------------------------------ prompt ------------------------------
 # One instruction covers both empty and furnished inputs. The editing model
@@ -116,6 +147,7 @@ def extract_image(response_json):
 def generate(model, image_b64):
     body = {
         "contents": [{
+            "role": "user",  # required by Vertex (plain API tolerates omitting it)
             "parts": [
                 {"text": prompt},
                 {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
@@ -126,8 +158,9 @@ def generate(model, image_b64):
         },
     }
     # Aspect ratio is intentionally omitted: for editing it defaults to the
-    # input photo's. imageSize is a 3.x-only feature (2.5 rejects it).
-    if not model.startswith("gemini-2.5"):
+    # input photo's. imageSize: only 3.1-flash and pro support 1K/2K/4K —
+    # Lite is fixed at 1K and legacy 2.5 at 1024px; both reject the field.
+    if model in ("gemini-3.1-flash-image", "gemini-3-pro-image"):
         body["generationConfig"]["imageConfig"] = {"imageSize": IMAGE_SIZE}
     for attempt in range(4):
         try:
@@ -173,24 +206,24 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 image_b64 = encode_input_image(room_image)
 
 print(f"Room type: {ROOM_TYPE} | Style: {DESIGN_STYLE} | Tone: {COLOR_TONE}")
+print(f"Model {MODEL_CHOICE}: {MODEL}")
 
-output_image = None
-for model in MODELS:
-    print(f"Generating with {model}...")
-    output_image = generate(model, image_b64)
-    if output_image is not None:
-        print(f"Success with {model}.")
-        break
+output_image = generate(MODEL, image_b64)
 
 if output_image is None:
     raise SystemExit(
-        "All models failed. Check the API key, quota/billing at "
-        "https://aistudio.google.com, and the error messages above."
+        f"{MODEL} failed. Check the error messages above and your "
+        "billing/quota at https://console.cloud.google.com."
     )
 
-output_image.save(os.path.join(OUTPUT_DIR, "generated_interior.png"))
+# Never overwrite previous results: generated_interior_001.png, _002.png, ...
+n = 1
+while os.path.exists(os.path.join(OUTPUT_DIR, f"generated_interior_{n:03d}.png")):
+    n += 1
+out_path = os.path.join(OUTPUT_DIR, f"generated_interior_{n:03d}.png")
+output_image.save(out_path)
 Image.fromarray(room_image).save(os.path.join(OUTPUT_DIR, "input.png"))
-print(f"\nSaved result to: {OUTPUT_DIR}/generated_interior.png")
+print(f"\nSaved result to: {out_path}")
 
 try:
     output_image.show()

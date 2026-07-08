@@ -9,3 +9,5 @@ output/
 *.pth
 *.bin
 controlnet/diffusion_pytorch_model.bin
+
+gemini_key.txt
