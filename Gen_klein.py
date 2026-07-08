@@ -36,14 +36,15 @@ COLOR_TONE = "warm vanilla latte"  # e.g. "sage green", "charcoal and walnut"
 
 # ----------------------------- config knobs -----------------------------
 OUTPUT_DIR = "output"
-# Each seed gives a different design (~10 s per render). Tried so far:
-# seed 7 -> geometry 0.717 (best), 576906284 -> 0.620, 42 -> 0.616,
-# 20260708 -> 0.602. The printed geometry score tells you how well a seed
-# kept the room's architecture (higher = more faithful).
+# Each seed gives a different design. The printed geometry score says how
+# well a seed kept the architecture (higher = more faithful); scores only
+# compare within the SAME prompt version, steps and input photo. Try a few
+# seeds per room and keep the best score.
 SEED = 7
 MODEL_ID = "black-forest-labs/FLUX.2-klein-4B"  # Apache 2.0, commercial OK
-# klein is step-distilled: 4 steps is the intended operating point and
-# guidance_scale is ignored by distilled checkpoints (keep 1.0).
+# klein is step-distilled: 4 steps is the intended operating point
+# (~10 s/render). 8 steps measured higher geometry scores in one test but
+# the user preferred the 4-step look. guidance_scale is ignored (keep 1.0).
 STEPS = 4
 GUIDANCE = 1.0
 
@@ -64,77 +65,80 @@ print(f"Input {orig_w}x{orig_h} -> generating {WIDTH}x{HEIGHT}")
 # so name the furniture, materials, and lighting explicitly. Extend freely.
 FURNITURE_BY_ROOM = {
     "living room": (
-        "a sculptural curved sofa in boucle fabric with a contrasting "
-        "velvet accent chair pair, a round travertine or warm-wood coffee "
-        "table, and a low wide media console styled with books and ceramics"
+        "a sculptural curved sofa with a caramel velvet back and cream "
+        "boucle seat, a pair of cream boucle armchairs, a travertine "
+        "pedestal coffee table, and a light oak media console with a TV "
+        "above it"
     ),
     "bedroom": (
-        "a generous upholstered bed with layered premium bedding, matching "
-        "nightstands with warm lamps, a bench at the foot of the bed, and a "
-        "styled dresser"
+        "an upholstered bed with layered premium bedding, two nightstands "
+        "with warm lamps, and a bench at the foot of the bed"
     ),
     "dining room": (
-        "a solid-wood dining table with sculptural designer chairs, a styled "
-        "sideboard, and a statement pendant centered over the table"
+        "a solid-wood dining table with sculptural chairs and a styled "
+        "sideboard"
     ),
     "kitchen": (
-        "full fitted cabinetry with stone countertops, an island or "
-        "breakfast counter with designer stools, integrated appliances, and "
-        "styled open shelving"
+        "fitted cabinetry with stone countertops, a breakfast counter with "
+        "designer stools, and integrated appliances"
     ),
     "home office": (
-        "a wide desk with a refined ergonomic chair, full bookshelves, task "
-        "lighting, and a comfortable reading armchair"
+        "a wide desk with a refined chair, full bookshelves, and a reading "
+        "armchair"
     ),
     "kids room": (
-        "a cozy bed with playful layered bedding, a study desk and chair, "
-        "soft rug, wall decor, and generous storage"
+        "a cozy bed with playful bedding, a study desk, a soft rug, and "
+        "generous storage"
     ),
     "bathroom": (
-        "a floating vanity with a stone counter and backlit mirror, a "
-        "glass-enclosed shower, premium tile surfaces, and styled towels"
+        "a floating stone-top vanity with a backlit mirror, a glass shower, "
+        "and premium tile"
     ),
 }
 _furniture = FURNITURE_BY_ROOM.get(
     ROOM_TYPE.lower().strip(),
-    f"all the essential furniture of a premium {ROOM_TYPE}, beautifully styled",
+    f"the essential furniture of a premium {ROOM_TYPE}, beautifully styled",
 )
 
 prompt = (
     f"Redesign this room as a {ROOM_TYPE} in {DESIGN_STYLE} style with a "
     f"{COLOR_TONE} color palette.\n\n"
     "HARD CONSTRAINTS - do not violate:\n"
-    "- Keep the room's architectural GEOMETRY exactly as in the photo: every "
-    "wall, window, door, ceiling, beam and column stays in its exact "
-    "position, size and shape. Do not add, remove, move or resize any window "
-    "or door. Surface finishes and materials MAY change; geometry may not.\n"
-    "- Keep each window's exact size, proportions and SILL HEIGHT. Never "
-    "enlarge a window or convert it into a door or floor-to-ceiling "
-    "glazing; keep balcony doors exactly as they are.\n"
-    "- Keep the exact same camera position, angle and lens/perspective.\n"
-    "- Keep daylight coming from the real windows; lighting must be "
-    "physically plausible for this room.\n\n"
-    "DESIGN BRIEF - work like a senior professional interior designer:\n"
-    "- If the room is empty, furnish it completely. If it already has "
-    "furniture or decor, replace all of it with the new design.\n"
-    "- FULLY FINISH every surface: a brand-new premium floor covering the "
-    "ENTIRE floor, smooth painted walls, clean finished ceiling. No "
-    "construction dust, debris, stains, bare concrete or exposed wires "
-    "anywhere.\n"
-    f"- Furnish completely with: {_furniture}; plus a large area rug "
-    "anchoring the arrangement, floor-to-ceiling sheer curtains on the real "
-    "windows, ONE large statement artwork on the main wall, an olive tree "
-    "or fiddle-leaf plant in a ceramic pot, and layered lighting (recessed "
-    "ceiling spots, a sculptural pendant, and a warm floor lamp).\n"
-    f"- COLOR & MATERIALS: everything in the {COLOR_TONE} palette with one "
-    "deeper accent tone for contrast; mix at least three rich textures "
-    "(boucle, velvet, stone, warm oak); wide-plank oak flooring unless the "
-    "style dictates otherwise.\n"
-    "- Realistic scale and proportions; furniture sits properly on the floor "
-    "with correct contact shadows; nothing floats or clips into walls.\n"
-    "- Shot like a professional interior photograph for a design magazine: "
-    "soft golden natural light from the real windows, gentle shadows, rich "
-    "material detail, immaculate styling, editorial composition."
+    "- Keep the architectural GEOMETRY exactly as in the photo: every "
+    "wall, window, door and ceiling keeps its exact position, size and "
+    "shape; never add, remove, move or resize a window or door. Finishes "
+    "MAY change; geometry may not.\n"
+    "- Keep each window's exact size and SILL HEIGHT; never enlarge or "
+    "convert a window; balcony doors stay as they are.\n"
+    "- Keep the exact same camera position, angle and lens/perspective.\n\n"
+    "DESIGN BRIEF - senior interior designer:\n"
+    "- Furnish if empty; replace everything if already furnished.\n"
+    "- FULLY FINISH every surface: wide-plank warm honey oak floor laid "
+    "straight, smooth cream walls, clean ceiling; no dust, stains, bare "
+    "concrete or wires.\n"
+    f"- Furnish with: {_furniture}; a LARGE chunky-woven jute rug under "
+    "all main furniture, an oversized caramel-gold abstract artwork on "
+    "the main wall, tall olive trees in matte travertine planters, a "
+    "brass floor lamp with tapered fabric shade, caramel velvet cushions, "
+    "books and ceramics on the table.\n"
+    "- Curtains: cream drapery from a recessed ceiling slot, NO rod or "
+    "gap, spanning the window wall; glowing sheer plus linen panels to "
+    "the floor.\n"
+    "- PLACEMENT: TV is a flat 16:9 rectangle, width TWICE its height, "
+    "narrower than the console, centered over it at eye height, nothing "
+    "behind it. Place decor by designer judgment - few high-quality "
+    "pieces, generous open space: corners MAY stay empty, never crowd two "
+    "items into one spot; plants NEVER stand in front of or overlap "
+    "furniture, and matching plants have matching size; nothing blocks "
+    "windows, doors or walkways; furniture square to walls.\n"
+    f"- Everything in the {COLOR_TONE} palette with deeper caramel-cognac "
+    "accents; boucle, velvet, travertine, jute and warm oak textures, "
+    "subtle brass; warm golden ambience.\n"
+    "- Editorial photo look, soft natural light, correct contact "
+    "shadows.\n\n"
+    "FINAL CHECK: the result must overlay the input photo exactly - same "
+    "walls, windows, doors and ceiling; only finishes and furnishings are "
+    "new."
 )
 print("PROMPT:\n", prompt, "\n" + "-" * 60)
 
@@ -164,6 +168,19 @@ from transformers import BitsAndBytesConfig as TransformersBnb4bit
 
 print("Stage 1/2: loading text encoder (4-bit)...")
 tokenizer = AutoTokenizer.from_pretrained(os.path.join(LOCAL_DIR, "tokenizer"))
+
+# Guard against the encoder's hard 512-token limit: anything beyond it is
+# SILENTLY truncated, cutting the FINAL CHECK constraints off the end.
+_chat = tokenizer.apply_chat_template(
+    [{"role": "user", "content": prompt}],
+    tokenize=False, add_generation_prompt=True, enable_thinking=False,
+)
+_ntok = len(tokenizer(_chat)["input_ids"])
+if _ntok > 512:
+    print(f"*** WARNING: prompt = {_ntok} tokens > 512 — the end of the "
+          "prompt WILL BE CUT OFF. Shorten it! ***")
+else:
+    print(f"Prompt tokens: {_ntok}/512")
 text_encoder = AutoModelForCausalLM.from_pretrained(
     os.path.join(LOCAL_DIR, "text_encoder"),
     torch_dtype=torch.bfloat16,
@@ -266,11 +283,13 @@ result = pipe(
 
 print(f"seed {SEED}: geometry score {geometry_score(room_image, result):.3f}")
 
-# Never overwrite previous results: ..._001.png, _002.png, ...
-n = 1
-while os.path.exists(os.path.join(OUTPUT_DIR, f"generated_interior_klein_{n:03d}.png")):
-    n += 1
-out_path = os.path.join(OUTPUT_DIR, f"generated_interior_klein_{n:03d}.png")
+# Never overwrite previous results; always continue after the highest
+# existing number (so deleting old files can't reshuffle the order).
+import glob
+import re
+_nums = [int(m.group(1)) for f in glob.glob(os.path.join(OUTPUT_DIR, "generated_interior_klein_*.png"))
+         if (m := re.search(r"_(\d+)\.png$", f))]
+out_path = os.path.join(OUTPUT_DIR, f"generated_interior_klein_{max(_nums, default=0) + 1:03d}.png")
 result.save(out_path)
 room_pil.save(os.path.join(OUTPUT_DIR, "input.png"))
 print(f"\nSaved: {out_path}")

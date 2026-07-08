@@ -216,11 +216,13 @@ if output_image is None:
         "billing/quota at https://console.cloud.google.com."
     )
 
-# Never overwrite previous results: generated_interior_001.png, _002.png, ...
-n = 1
-while os.path.exists(os.path.join(OUTPUT_DIR, f"generated_interior_{n:03d}.png")):
-    n += 1
-out_path = os.path.join(OUTPUT_DIR, f"generated_interior_{n:03d}.png")
+# Never overwrite previous results; always continue after the highest
+# existing number (so deleting old files can't reshuffle the order).
+import glob
+import re
+_nums = [int(m.group(1)) for f in glob.glob(os.path.join(OUTPUT_DIR, "generated_interior_*.png"))
+         if (m := re.search(r"generated_interior_(\d+)\.png$", f))]
+out_path = os.path.join(OUTPUT_DIR, f"generated_interior_{max(_nums, default=0) + 1:03d}.png")
 output_image.save(out_path)
 Image.fromarray(room_image).save(os.path.join(OUTPUT_DIR, "input.png"))
 print(f"\nSaved result to: {out_path}")

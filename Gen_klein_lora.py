@@ -243,11 +243,13 @@ result = pipe(
 
 print(f"seed {SEED}: geometry score {geometry_score(room_image, result):.3f}")
 
-# Never overwrite previous results: ..._001.png, _002.png, ...
-n = 1
-while os.path.exists(os.path.join(OUTPUT_DIR, f"generated_interior_klein_lora_{n:03d}.png")):
-    n += 1
-out_path = os.path.join(OUTPUT_DIR, f"generated_interior_klein_lora_{n:03d}.png")
+# Never overwrite previous results; always continue after the highest
+# existing number (so deleting old files can't reshuffle the order).
+import glob
+import re
+_nums = [int(m.group(1)) for f in glob.glob(os.path.join(OUTPUT_DIR, "generated_interior_klein_lora_*.png"))
+         if (m := re.search(r"_(\d+)\.png$", f))]
+out_path = os.path.join(OUTPUT_DIR, f"generated_interior_klein_lora_{max(_nums, default=0) + 1:03d}.png")
 result.save(out_path)
 depth_pil.save(os.path.join(OUTPUT_DIR, "klein_depth_map.png"))
 room_pil.save(os.path.join(OUTPUT_DIR, "input.png"))
