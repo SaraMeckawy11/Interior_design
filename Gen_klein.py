@@ -60,15 +60,113 @@ else:
 print(f"Input {orig_w}x{orig_h} -> generating {WIDTH}x{HEIGHT}")
 
 # ----------------------------- prompt --------------------------------------
-# What "fully furnished" means per room type. The art direction below is what
-# separates a generic render from a designer one: models draw what you NAME,
-# so name the furniture, materials, and lighting explicitly. Extend freely.
+# The prompt is composed from the THREE user inputs (room type, design
+# style, color tone). Models draw what you NAME, so each style defines its
+# own shapes (round vs rectangular table!), materials, floor, curtains,
+# art, plants, lamp and textures. Extend either table freely.
+STYLE_SPECS = {
+    "modern": dict(
+        sofa="a sculptural curved sofa with a velvet back and boucle seat",
+        table="a round travertine pedestal coffee table",
+        floor="wide-plank warm honey oak laid straight",
+        rug="a LARGE chunky-woven jute rug",
+        curtains="cream double-layer drapery, glowing sheer plus linen panels",
+        art="an oversized abstract artwork in the palette",
+        plants="tall olive trees in matte travertine planters",
+        lamp="a brass floor lamp with tapered fabric shade",
+        textures=("deeper tone-on-tone accents; boucle, velvet, travertine, "
+                  "jute and warm oak, subtle brass; warm golden ambience"),
+    ),
+    "classic": dict(
+        sofa="a tailored roll-arm sofa with carved wooden legs",
+        table="a rectangular marble-top coffee table with carved legs",
+        floor="herringbone oak parquet",
+        rug="a LARGE bordered wool rug",
+        curtains="heavy pleated drapery with elegant tiebacks",
+        art="a large framed classical painting",
+        plants="sculpted plants in ceramic urns",
+        lamp="a column floor lamp with a pleated shade",
+        textures=("rich deeper accents; silk, velvet, marble and dark "
+                  "polished wood, antique gold details; stately warm mood"),
+    ),
+    "scandinavian": dict(
+        sofa="a clean-lined fabric sofa on tapered wooden legs",
+        table="a round pale-wood coffee table",
+        floor="pale matte oak boards",
+        rug="a LARGE soft wool rug",
+        curtains="airy white linen curtains",
+        art="simple framed line-art prints",
+        plants="a leafy plant in a simple white pot",
+        lamp="a minimalist tripod floor lamp",
+        textures=("muted tone-on-tone accents; wool, linen, pale birch and "
+                  "sheepskin, matte black details; bright airy calm"),
+    ),
+    "boho": dict(
+        sofa="a relaxed low sofa with layered patterned cushions",
+        table="a round carved-wood or rattan coffee table",
+        floor="warm rustic wood boards",
+        rug="LAYERED patterned rugs",
+        curtains="light flowing natural-cotton curtains",
+        art="an eclectic mix of woven and framed wall pieces",
+        plants="abundant potted and trailing plants in terracotta and baskets",
+        lamp="a woven rattan floor lamp",
+        textures=("earthy playful accents; rattan, macrame, layered woven "
+                  "textiles, jute and terracotta; relaxed sunlit warmth"),
+    ),
+    "japandi": dict(
+        sofa="a low clean-lined sofa in natural linen",
+        table="a low round dark-wood coffee table",
+        floor="light matte wood boards",
+        rug="a LARGE flat-woven neutral rug",
+        curtains="plain linen panels",
+        art="one minimal ink-brush artwork",
+        plants="a single sculptural branch arrangement in a stone vessel",
+        lamp="a paper-lantern floor lamp",
+        textures=("quiet deeper accents; linen, pale and dark wood, stone "
+                  "and paper, matte black; serene zen calm"),
+    ),
+    "industrial": dict(
+        sofa="a cognac leather sofa",
+        table="a rectangular reclaimed-wood and black steel coffee table",
+        floor="wide dark wood boards",
+        rug="a LARGE worn-look neutral rug",
+        curtains="simple dark linen panels",
+        art="large monochrome photography prints",
+        plants="a tall plant in a black metal planter",
+        lamp="a black tripod spotlight floor lamp",
+        textures=("bold contrast accents; leather, black steel, reclaimed "
+                  "wood and aged brass; moody warm light"),
+    ),
+    "minimalist": dict(
+        sofa="a low straight-lined sofa in soft neutral fabric",
+        table="a low rectangular seamless coffee table",
+        floor="seamless pale oak boards",
+        rug="a LARGE plain low-pile rug",
+        curtains="plain full-height panels near the wall tone",
+        art="one single large calm artwork",
+        plants="one sculptural plant in a plain pot",
+        lamp="a slim unobtrusive floor lamp",
+        textures=("subtle tone-on-tone accents; smooth plaster, pale wood "
+                  "and soft matte fabric; serene uncluttered light"),
+    ),
+}
+_st = STYLE_SPECS.get(DESIGN_STYLE.lower().strip()) or dict(
+    sofa=f"an authentic {DESIGN_STYLE} statement sofa",
+    table=f"a coffee table in authentic {DESIGN_STYLE} design",
+    floor=f"premium flooring true to {DESIGN_STYLE} style",
+    rug="a LARGE area rug true to the style",
+    curtains="full-height drapery true to the style",
+    art="one large artwork matching the style",
+    plants="plants in style-matching pots",
+    lamp="a floor lamp matching the style",
+    textures=(f"deeper tone-on-tone accents; materials and textures "
+              f"authentic to {DESIGN_STYLE} style"),
+)
+
 FURNITURE_BY_ROOM = {
     "living room": (
-        "a sculptural curved sofa with a caramel velvet back and cream "
-        "boucle seat, a pair of cream boucle armchairs, a travertine "
-        "pedestal coffee table, and a light oak media console with a TV "
-        "above it"
+        f"{_st['sofa']}, a pair of matching armchairs, {_st['table']}, "
+        "and a media console with a TV above it"
     ),
     "bedroom": (
         "an upholstered bed with layered premium bedding, two nightstands "
@@ -113,17 +211,13 @@ prompt = (
     "- Keep the exact same camera position, angle and lens/perspective.\n\n"
     "DESIGN BRIEF - senior interior designer:\n"
     "- Furnish if empty; replace everything if already furnished.\n"
-    "- FULLY FINISH every surface: wide-plank warm honey oak floor laid "
-    "straight, smooth cream walls, clean ceiling; no dust, stains, bare "
-    "concrete or wires.\n"
-    f"- Furnish with: {_furniture}; a LARGE chunky-woven jute rug under "
-    "all main furniture, an oversized caramel-gold abstract artwork on "
-    "the main wall, tall olive trees in matte travertine planters, a "
-    "brass floor lamp with tapered fabric shade, caramel velvet cushions, "
-    "books and ceramics on the table.\n"
-    "- Curtains: cream drapery from a recessed ceiling slot, NO rod or "
-    "gap, spanning the window wall; glowing sheer plus linen panels to "
-    "the floor.\n"
+    f"- FULLY FINISH every surface: {_st['floor']} floor, smooth painted "
+    "walls, clean ceiling; no dust, stains, bare concrete or wires.\n"
+    f"- Furnish with: {_furniture}; {_st['rug']} under all main "
+    f"furniture, {_st['art']} on the main wall, {_st['plants']}, "
+    f"{_st['lamp']}, layered cushions, books and ceramics on the table.\n"
+    f"- Curtains: {_st['curtains']}, from a recessed ceiling slot, NO rod "
+    "or gap, spanning the window wall, falling to the floor.\n"
     "- PLACEMENT: TV is a flat 16:9 rectangle, width TWICE its height, "
     "narrower than the console, centered over it at eye height, nothing "
     "behind it. Place decor by designer judgment - few high-quality "
@@ -131,9 +225,7 @@ prompt = (
     "items into one spot; plants NEVER stand in front of or overlap "
     "furniture, and matching plants have matching size; nothing blocks "
     "windows, doors or walkways; furniture square to walls.\n"
-    f"- Everything in the {COLOR_TONE} palette with deeper caramel-cognac "
-    "accents; boucle, velvet, travertine, jute and warm oak textures, "
-    "subtle brass; warm golden ambience.\n"
+    f"- Everything in the {COLOR_TONE} palette with {_st['textures']}.\n"
     "- Editorial photo look, soft natural light, correct contact "
     "shadows.\n\n"
     "FINAL CHECK: the result must overlay the input photo exactly - same "
