@@ -32,7 +32,28 @@ from loader import room_image  # NumPy image, RGB, HWC, uint8
 # ----------------------------- user preferences -----------------------------
 ROOM_TYPE = "living room"        # e.g. "bedroom", "home office", "kitchen"
 DESIGN_STYLE = "modern"          # e.g. "japandi", "minimalist", "industrial"
-COLOR_TONE = "warm vanilla latte"  # e.g. "sage green", "charcoal and walnut"
+# Color: pick a designer-matched palette by number. Each has 3 colors that
+# work together: dominant (60%), secondary (30%), accent (10%).
+COLOR_PALETTES = {
+    1: "warm vanilla latte, caramel and olive green",
+    2: "sage green, cream and walnut brown",
+    3: "cool grey, white and matte black",
+    4: "sand beige, terracotta and rust",
+    5: "navy blue, cream and brass gold",
+    6: "charcoal, walnut and amber",
+    7: "dusty rose, cream and muted gold",
+    8: "ivory, light oak and forest green",
+}
+COLOR_CHOICE = 1
+CUSTOM_COLORS = None  # e.g. "olive, cream and black" - overrides COLOR_CHOICE
+COLOR_TONE = CUSTOM_COLORS or COLOR_PALETTES[COLOR_CHOICE]
+# Split the palette into its three named roles so the prompt can assign
+# concrete colors (models obey "sofa in warm vanilla latte" far better
+# than "sofa in the dominant color").
+_cparts = [c.strip() for c in COLOR_TONE.replace(" and ", ", ").split(",") if c.strip()]
+DOM = _cparts[0]
+SEC = _cparts[1] if len(_cparts) > 1 else DOM
+ACC = _cparts[2] if len(_cparts) > 2 else SEC
 
 # ----------------------------- config knobs -----------------------------
 OUTPUT_DIR = "output"
@@ -74,6 +95,7 @@ STYLE_SPECS = {
         art="an oversized abstract artwork in the palette",
         plants="tall olive trees in matte travertine planters",
         lamp="a brass floor lamp with tapered fabric shade",
+        ceiling="ONE wide disc pendant close to the ceiling",
         textures=("deeper tone-on-tone accents; boucle, velvet, travertine, "
                   "jute and warm oak, subtle brass; warm golden ambience"),
     ),
@@ -86,6 +108,7 @@ STYLE_SPECS = {
         art="a large framed classical painting",
         plants="sculpted plants in ceramic urns",
         lamp="a column floor lamp with a pleated shade",
+        ceiling="ONE crystal chandelier on a short chain, close to the ceiling",
         textures=("rich deeper accents; silk, velvet, marble and dark "
                   "polished wood, antique gold details; stately warm mood"),
     ),
@@ -98,6 +121,7 @@ STYLE_SPECS = {
         art="simple framed line-art prints",
         plants="a leafy plant in a simple white pot",
         lamp="a minimalist tripod floor lamp",
+        ceiling="ONE small white dome pendant close to the ceiling",
         textures=("muted tone-on-tone accents; wool, linen, pale birch and "
                   "sheepskin, matte black details; bright airy calm"),
     ),
@@ -110,6 +134,7 @@ STYLE_SPECS = {
         art="an eclectic mix of woven and framed wall pieces",
         plants="abundant potted and trailing plants in terracotta and baskets",
         lamp="a woven rattan floor lamp",
+        ceiling="ONE woven rattan pendant close to the ceiling",
         textures=("earthy playful accents; rattan, macrame, layered woven "
                   "textiles, jute and terracotta; relaxed sunlit warmth"),
     ),
@@ -122,6 +147,7 @@ STYLE_SPECS = {
         art="one minimal ink-brush artwork",
         plants="a single sculptural branch arrangement in a stone vessel",
         lamp="a paper-lantern floor lamp",
+        ceiling="ONE round paper lantern close to the ceiling",
         textures=("quiet deeper accents; linen, pale and dark wood, stone "
                   "and paper, matte black; serene zen calm"),
     ),
@@ -134,6 +160,7 @@ STYLE_SPECS = {
         art="large monochrome photography prints",
         plants="a tall plant in a black metal planter",
         lamp="a black tripod spotlight floor lamp",
+        ceiling="ONE black metal ceiling light close to the ceiling",
         textures=("bold contrast accents; leather, black steel, reclaimed "
                   "wood and aged brass; moody warm light"),
     ),
@@ -146,6 +173,7 @@ STYLE_SPECS = {
         art="one single large calm artwork",
         plants="one sculptural plant in a plain pot",
         lamp="a slim unobtrusive floor lamp",
+        ceiling="ONE discreet flush ceiling light",
         textures=("subtle tone-on-tone accents; smooth plaster, pale wood "
                   "and soft matte fabric; serene uncluttered light"),
     ),
@@ -159,13 +187,15 @@ _st = STYLE_SPECS.get(DESIGN_STYLE.lower().strip()) or dict(
     art="one large artwork matching the style",
     plants="plants in style-matching pots",
     lamp="a floor lamp matching the style",
+    ceiling="ONE style-matched ceiling light close to the ceiling",
     textures=(f"deeper tone-on-tone accents; materials and textures "
               f"authentic to {DESIGN_STYLE} style"),
 )
 
 FURNITURE_BY_ROOM = {
     "living room": (
-        f"{_st['sofa']}, a pair of matching armchairs, {_st['table']}, "
+        f"{_st['sofa']}, a neutral-tone armchair pair - EXACTLY 2 chairs "
+        f"total in the room, NO third chair or extra seat - {_st['table']}, "
         "and a media console with a TV above it"
     ),
     "bedroom": (
@@ -199,38 +229,34 @@ _furniture = FURNITURE_BY_ROOM.get(
 )
 
 prompt = (
-    f"Redesign this room as a {ROOM_TYPE} in {DESIGN_STYLE} style with a "
-    f"{COLOR_TONE} color palette.\n\n"
+    f"Redesign this room as a {ROOM_TYPE} in {DESIGN_STYLE} style.\n\n"
     "HARD CONSTRAINTS - do not violate:\n"
     "- Keep the architectural GEOMETRY exactly as in the photo: every "
     "wall, window, door and ceiling keeps its exact position, size and "
     "shape; never add, remove, move or resize a window or door. Finishes "
     "MAY change; geometry may not.\n"
-    "- Keep each window's exact size and SILL HEIGHT; never enlarge or "
-    "convert a window; balcony doors stay as they are.\n"
-    "- Keep the exact same camera position, angle and lens/perspective.\n\n"
+    "- Keep every window's exact size and SILL HEIGHT.\n"
+    "- Keep the exact same camera position and angle.\n\n"
     "DESIGN BRIEF - senior interior designer:\n"
-    "- Furnish if empty; replace everything if already furnished.\n"
-    f"- FULLY FINISH every surface: {_st['floor']} floor, smooth painted "
-    "walls, clean ceiling; no dust, stains, bare concrete or wires.\n"
+    "- Furnish if empty; else replace all.\n"
+    f"- FULLY FINISH: {_st['floor']} floor, smooth walls, clean ceiling; "
+    "no dust or bare concrete.\n"
     f"- Furnish with: {_furniture}; {_st['rug']} under all main "
     f"furniture, {_st['art']} on the main wall, {_st['plants']}, "
-    f"{_st['lamp']}, layered cushions, books and ceramics on the table.\n"
+    f"{_st['lamp']}, {_st['ceiling']}, and layered cushions.\n"
     f"- Curtains: {_st['curtains']}, from a recessed ceiling slot, NO rod "
     "or gap, spanning the window wall, falling to the floor.\n"
-    "- PLACEMENT: TV is a flat 16:9 rectangle, width TWICE its height, "
-    "narrower than the console, centered over it at eye height, nothing "
-    "behind it. Place decor by designer judgment - few high-quality "
-    "pieces, generous open space: corners MAY stay empty, never crowd two "
-    "items into one spot; plants NEVER stand in front of or overlap "
-    "furniture, and matching plants have matching size; nothing blocks "
-    "windows, doors or walkways; furniture square to walls.\n"
-    f"- Everything in the {COLOR_TONE} palette with {_st['textures']}.\n"
-    "- Editorial photo look, soft natural light, correct contact "
-    "shadows.\n\n"
-    "FINAL CHECK: the result must overlay the input photo exactly - same "
-    "walls, windows, doors and ceiling; only finishes and furnishings are "
-    "new."
+    "- PLACEMENT: a LARGE 16:9 TV, TWICE as wide as tall, centered over "
+    "the console, nothing behind it. Put the floor lamp and the plants "
+    "on OPPOSITE sides of the room, never touching or adjacent; matching "
+    "plants match in size; nothing blocks windows or doors; furniture "
+    "square to walls; floor stays CLEAR except furniture, rug and pots.\n"
+    f"- COLOR: {DOM} on walls and the sofa, {SEC} on large accents, "
+    f"{ACC} ONLY in cushions and small decor - never {ACC} on the sofa; "
+    f"{_st['textures']}.\n"
+    "- Editorial photo, natural light, contact shadows.\n\n"
+    "FINAL CHECK: the result overlays the input photo exactly - same "
+    "walls, windows, doors, ceiling; only finishes and furnishings new."
 )
 print("PROMPT:\n", prompt, "\n" + "-" * 60)
 
