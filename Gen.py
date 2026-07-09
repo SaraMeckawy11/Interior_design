@@ -62,7 +62,7 @@ API_KEY = _load_api_key()
 #   2 = Nano Banana 2 Lite  (gemini-3.1-flash-lite-image)  ~$0.034/img — cheapest + fastest
 #   3 = Nano Banana Pro     (gemini-3-pro-image)           ~$0.134/img — maximum quality, slowest
 #   4 = Nano Banana legacy  (gemini-2.5-flash-image)       ~$0.039/img — old model, 1024px only
-MODEL_CHOICE = 1
+MODEL_CHOICE = 4
 
 MODEL_OPTIONS = {
     1: "gemini-3.1-flash-image",
