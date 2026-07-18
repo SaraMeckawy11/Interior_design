@@ -2,7 +2,6 @@ __pycache__/
 hf_cache/
 sam/
 models/
-images/
 output/
 .vscode/
 
